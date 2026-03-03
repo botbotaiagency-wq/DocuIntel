@@ -1,21 +1,26 @@
 import { useState } from "react";
 import { useDocuments, useExtractDocument, useDeleteDocument } from "@/hooks/use-documents";
+import { useAuth } from "@/hooks/use-auth";
 import { StatusBadge } from "@/components/StatusBadge";
 import { format } from "date-fns";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { FileText, Eye, Bot, Loader2, ArrowRight, Trash2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { FileText, Eye, Bot, Loader2, ArrowRight, Trash2, User } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const { data: documents, isLoading } = useDocuments();
+  const { user } = useAuth();
   const extractMutation = useExtractDocument();
   const deleteMutation = useDeleteDocument();
   const { toast } = useToast();
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
+
+  const isAdmin = user?.role === "Admin";
+  const displayName = user?.displayName || user?.firstName || user?.username || "User";
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -52,10 +57,14 @@ export default function Dashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Recent Documents</h2>
-          <p className="text-muted-foreground">Manage and track your document extractions.</p>
+          <h2 className="text-2xl font-bold tracking-tight" data-testid="text-dashboard-title">
+            {isAdmin ? "All Documents" : "My Documents"}
+          </h2>
+          <p className="text-muted-foreground" data-testid="text-dashboard-greeting">
+            Welcome back, {displayName}. {isAdmin ? "Viewing all staff documents." : "Manage and track your document extractions."}
+          </p>
         </div>
-        <Button asChild className="gap-2">
+        <Button asChild className="gap-2" data-testid="button-upload-new">
           <Link href="/upload">
             <ArrowRight className="h-4 w-4" />
             Upload New
@@ -69,6 +78,7 @@ export default function Dashboard() {
             <TableRow className="border-border/50">
               <TableHead className="w-[250px]">Filename</TableHead>
               <TableHead>Type</TableHead>
+              {isAdmin && <TableHead>Uploaded By</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Uploaded</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -77,13 +87,13 @@ export default function Dashboard() {
           <TableBody>
             {docs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={isAdmin ? 6 : 5} className="h-32 text-center text-muted-foreground" data-testid="text-no-documents">
                   No documents found. Upload one to get started.
                 </TableCell>
               </TableRow>
             ) : (
-              docs.map((doc) => (
-                <TableRow key={doc.id} className="border-border/50 hover:bg-muted/30 transition-colors">
+              docs.map((doc: any) => (
+                <TableRow key={doc.id} className="border-border/50 hover:bg-muted/30 transition-colors" data-testid={`row-document-${doc.id}`}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-3">
                       <FileText className="h-4 w-4 text-muted-foreground" />
@@ -96,9 +106,17 @@ export default function Dashboard() {
                         {doc.docType}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
+                  {isAdmin && (
+                    <TableCell>
+                      <div className="flex items-center gap-2" data-testid={`text-uploader-${doc.id}`}>
+                        <User className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-sm">{doc.uploaderName || doc.uploaderUsername || "Unknown"}</span>
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <StatusBadge status={doc.status} />
                   </TableCell>

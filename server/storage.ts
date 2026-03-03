@@ -10,6 +10,8 @@ export interface IStorage {
 
   // Documents
   getDocuments(): Promise<Document[]>;
+  getDocumentsByUser(userId: string): Promise<Document[]>;
+  getDocumentsWithUploader(): Promise<any[]>;
   getDocument(id: number): Promise<Document | undefined>;
   createDocument(doc: Partial<Document>): Promise<Document>;
   updateDocumentStatus(id: number, status: string): Promise<Document>;
@@ -35,7 +37,8 @@ export interface IStorage {
   getUserProfile(userId: string): Promise<UserProfile | undefined>;
   createUserProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
   updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile>;
-  createStaffUser(userId: string, displayName: string): Promise<void>;
+  createStaffUser(userId: string, displayName: string, username: string, passwordHash: string): Promise<void>;
+  getUserByUsername(username: string): Promise<any>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -97,6 +100,35 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(documents).where(isNull(documents.deletedAt)).orderBy(desc(documents.createdAt));
   }
 
+  async getDocumentsByUser(userId: string): Promise<Document[]> {
+    return await db.select().from(documents).where(and(isNull(documents.deletedAt), eq(documents.uploaderUserId, userId))).orderBy(desc(documents.createdAt));
+  }
+
+  async getDocumentsWithUploader(): Promise<any[]> {
+    const results = await db
+      .select({
+        id: documents.id,
+        orgId: documents.orgId,
+        uploaderUserId: documents.uploaderUserId,
+        storageKey: documents.storageKey,
+        originalFilename: documents.originalFilename,
+        sha256: documents.sha256,
+        mimeType: documents.mimeType,
+        docType: documents.docType,
+        pages: documents.pages,
+        status: documents.status,
+        createdAt: documents.createdAt,
+        deletedAt: documents.deletedAt,
+        uploaderName: users.firstName,
+        uploaderUsername: users.username,
+      })
+      .from(documents)
+      .leftJoin(users, eq(documents.uploaderUserId, users.id))
+      .where(isNull(documents.deletedAt))
+      .orderBy(desc(documents.createdAt));
+    return results;
+  }
+
   async getSchemas(): Promise<DocumentSchema[]> {
     return await db.select().from(documentSchemas);
   }
@@ -126,6 +158,7 @@ export class DatabaseStorage implements IStorage {
         firstName: users.firstName,
         lastName: users.lastName,
         email: users.email,
+        username: users.username,
       })
       .from(userProfiles)
       .leftJoin(users, eq(userProfiles.userId, users.id));
@@ -147,11 +180,18 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async createStaffUser(userId: string, displayName: string): Promise<void> {
+  async createStaffUser(userId: string, displayName: string, username: string, passwordHash: string): Promise<void> {
     await db.insert(users).values({
       id: userId,
+      username,
+      passwordHash,
       firstName: displayName,
     } as any);
+  }
+
+  async getUserByUsername(username: string): Promise<any> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 }
 

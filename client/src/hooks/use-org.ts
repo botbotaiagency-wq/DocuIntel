@@ -38,7 +38,10 @@ export function useCreateUser() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create user");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to create user");
+      }
       return await res.json();
     },
     onSuccess: () => {

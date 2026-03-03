@@ -34,6 +34,8 @@ export default function Admin() {
   const [editSchemaJson, setEditSchemaJson] = useState("");
 
   const [newUserName, setNewUserName] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [newUserRole, setNewUserRole] = useState("Viewer");
 
   const handleCreateSchema = async () => {
@@ -76,14 +78,20 @@ export default function Admin() {
   };
 
   const handleCreateUser = async () => {
-    if (!newUserName.trim()) return;
+    if (!newUserName.trim() || !newUsername.trim() || !newPassword.trim()) return;
+    if (newPassword.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
     try {
-      await createUser.mutateAsync({ displayName: newUserName, role: newUserRole });
+      await createUser.mutateAsync({ displayName: newUserName, username: newUsername, password: newPassword, role: newUserRole });
       toast({ title: "User Created", description: `${newUserName} added as ${newUserRole}.` });
       setNewUserName("");
+      setNewUsername("");
+      setNewPassword("");
       setNewUserRole("Viewer");
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to create user.", variant: "destructive" });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to create user.", variant: "destructive" });
     }
   };
 
@@ -178,18 +186,39 @@ export default function Admin() {
               <CardDescription>Create user profiles and assign roles for your organization.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex gap-4 items-end">
-                <div className="flex-1 space-y-2">
-                  <Label>Staff Name</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Display Name</Label>
                   <Input 
-                    placeholder="Enter staff name" 
+                    placeholder="e.g. Ahmad bin Ismail" 
                     value={newUserName} 
                     onChange={(e) => setNewUserName(e.target.value)} 
                     className="bg-background/50"
                     data-testid="input-staff-name"
                   />
                 </div>
-                <div className="w-[200px] space-y-2">
+                <div className="space-y-2">
+                  <Label>Username</Label>
+                  <Input 
+                    placeholder="e.g. ahmad.ismail" 
+                    value={newUsername} 
+                    onChange={(e) => setNewUsername(e.target.value)} 
+                    className="bg-background/50"
+                    data-testid="input-staff-username"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Input 
+                    type="password"
+                    placeholder="Min. 6 characters" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    className="bg-background/50"
+                    data-testid="input-staff-password"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Role</Label>
                   <Select value={newUserRole} onValueChange={setNewUserRole}>
                     <SelectTrigger className="bg-background/50" data-testid="select-role">
@@ -203,10 +232,10 @@ export default function Admin() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={handleCreateUser} disabled={createUser.isPending || !newUserName.trim()} className="gap-2" data-testid="button-add-user">
-                  <Plus className="h-4 w-4" /> Add User
-                </Button>
               </div>
+              <Button onClick={handleCreateUser} disabled={createUser.isPending || !newUserName.trim() || !newUsername.trim() || !newPassword.trim()} className="gap-2" data-testid="button-add-user">
+                <Plus className="h-4 w-4" /> Add User
+              </Button>
             </CardContent>
           </Card>
 
@@ -222,7 +251,7 @@ export default function Admin() {
                   <TableHeader className="bg-muted/50">
                     <TableRow className="border-border/50">
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
+                      <TableHead>Username</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -238,7 +267,7 @@ export default function Admin() {
                       usersList.map((user: any, idx: number) => (
                         <TableRow key={user.userId || idx} className="border-border/50" data-testid={`row-user-${user.userId}`}>
                           <TableCell className="font-medium">{user.displayName || user.firstName || 'N/A'} {user.lastName || ''}</TableCell>
-                          <TableCell className="text-muted-foreground">{user.email || 'N/A'}</TableCell>
+                          <TableCell className="text-muted-foreground">{user.username || user.email || 'N/A'}</TableCell>
                           <TableCell>
                             <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
                               user.role === 'Admin' ? 'bg-red-500/10 text-red-500' :
