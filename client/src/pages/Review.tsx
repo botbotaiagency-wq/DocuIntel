@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Check, Save, AlertTriangle, ArrowLeft, Bot } from "lucide-react";
+import { Loader2, Check, Save, AlertTriangle, ArrowLeft, Bot, FileText, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Review() {
@@ -25,6 +25,7 @@ export default function Review() {
 
   const [jsonStr, setJsonStr] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<"preview" | "data">("preview");
 
   useEffect(() => {
     if (extraction?.extractedJson) {
@@ -81,74 +82,97 @@ export default function Review() {
   const isImage = document.mimeType?.includes('image');
 
   return (
-    <div className="space-y-6 h-[calc(100vh-120px)] flex flex-col">
-      <div className="flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="shrink-0" data-testid="button-back">
+    <div className="space-y-4 sm:space-y-6 flex flex-col" style={{ height: "calc(100dvh - 7rem)" }}>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <div className="flex items-start sm:items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="shrink-0 h-9 w-9" data-testid="button-back">
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold tracking-tight truncate max-w-md" data-testid="text-document-name">{document.originalFilename}</h2>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight truncate max-w-[200px] sm:max-w-md" data-testid="text-document-name">{document.originalFilename}</h2>
               {document.docType && (
                 <span className="text-xs font-medium bg-primary/10 text-primary px-2.5 py-1 rounded-full" data-testid="text-doc-type">
                   {document.docType}
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3 mt-1">
+            <div className="flex items-center gap-2 sm:gap-3 mt-1 flex-wrap">
               <StatusBadge status={document.status} />
               {extraction && <RiskBadge level={extraction.riskLevel} />}
               {extraction?.confidence && (
                 <span className="text-xs font-medium text-muted-foreground" data-testid="text-confidence">
-                  Confidence: {(extraction.confidence * 100).toFixed(1)}%
+                  {(extraction.confidence * 100).toFixed(1)}%
                 </span>
               )}
             </div>
           </div>
         </div>
         
-        <div className="flex gap-3">
+        <div className="flex gap-2 sm:gap-3 ml-12 sm:ml-0">
           {isPending && (
             <Button 
               onClick={handleExtract} 
               disabled={extractMutation.isPending} 
-              className="gap-2"
+              className="gap-2 flex-1 sm:flex-none h-10"
+              size="sm"
               data-testid="button-extract"
             >
               {extractMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-              Extract Data
+              Extract
             </Button>
           )}
           {isReviewRequired && (
             <>
-              <Button variant="outline" onClick={handleUpdate} disabled={updateReview.isPending} className="gap-2" data-testid="button-save">
+              <Button variant="outline" onClick={handleUpdate} disabled={updateReview.isPending} className="gap-2 flex-1 sm:flex-none h-10" size="sm" data-testid="button-save">
                 <Save className="h-4 w-4" />
-                Save Edits
+                <span className="hidden sm:inline">Save Edits</span>
+                <span className="sm:hidden">Save</span>
               </Button>
-              <Button onClick={handleApprove} disabled={approveReview.isPending} className="gap-2 shadow-lg shadow-primary/20" data-testid="button-approve">
+              <Button onClick={handleApprove} disabled={approveReview.isPending} className="gap-2 flex-1 sm:flex-none h-10 shadow-lg shadow-primary/20" size="sm" data-testid="button-approve">
                 <Check className="h-4 w-4" />
-                Approve Data
+                Approve
               </Button>
             </>
           )}
         </div>
       </div>
 
-      <div className="flex gap-6 flex-1 min-h-0">
-        <Card className="flex-1 border-border/50 bg-card overflow-hidden flex flex-col shadow-md">
-          <CardHeader className="py-4 border-b border-border/50 bg-muted/20 shrink-0">
+      <div className="lg:hidden shrink-0">
+        <div className="flex gap-1 bg-muted/50 p-1 rounded-lg">
+          <button
+            onClick={() => setActiveView("preview")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors ${activeView === "preview" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            data-testid="toggle-preview"
+          >
+            <FileText className="h-4 w-4" />
+            Document
+          </button>
+          <button
+            onClick={() => setActiveView("data")}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors ${activeView === "data" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}
+            data-testid="toggle-data"
+          >
+            <Shield className="h-4 w-4" />
+            Data & Review
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-4 sm:gap-6 flex-1 min-h-0">
+        <Card className={`flex-1 border-border/50 bg-card overflow-hidden flex flex-col shadow-md ${activeView !== "preview" ? "hidden lg:flex" : "flex"}`}>
+          <CardHeader className="py-3 sm:py-4 border-b border-border/50 bg-muted/20 shrink-0">
             <CardTitle className="text-sm font-medium">Source Document</CardTitle>
           </CardHeader>
-          <CardContent className="p-0 flex-1 relative bg-white dark:bg-gray-900">
+          <CardContent className="p-0 flex-1 relative bg-white dark:bg-gray-900 min-h-[300px] sm:min-h-0">
             {isImage ? (
-              <div className="absolute inset-0 overflow-auto p-4 flex justify-center items-start">
+              <div className="absolute inset-0 overflow-auto p-3 sm:p-4 flex justify-center items-start">
                 <img src={previewUrl} alt="Document" className="max-w-full h-auto rounded shadow-sm border border-border/50" data-testid="img-document" />
               </div>
             ) : (
               <iframe 
                 src={previewUrl}
-                className="w-full h-full border-0 bg-white" 
+                className="w-full h-full border-0 bg-white min-h-[300px] sm:min-h-0" 
                 title="Document Preview"
                 data-testid="iframe-document"
               />
@@ -156,9 +180,9 @@ export default function Review() {
           </CardContent>
         </Card>
 
-        <Card className="w-[450px] lg:w-[500px] border-border/50 bg-card flex flex-col shadow-md shrink-0">
+        <Card className={`lg:w-[450px] xl:w-[500px] border-border/50 bg-card flex flex-col shadow-md lg:shrink-0 ${activeView !== "data" ? "hidden lg:flex" : "flex"}`}>
           <Tabs defaultValue="data" className="flex-1 flex flex-col h-full">
-            <div className="px-4 py-3 border-b border-border/50 bg-muted/20 shrink-0">
+            <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-border/50 bg-muted/20 shrink-0">
               <TabsList className="w-full grid grid-cols-2">
                 <TabsTrigger value="data" data-testid="tab-extracted-data">Extracted Data</TabsTrigger>
                 <TabsTrigger value="validation" data-testid="tab-validation">Validation</TabsTrigger>
@@ -167,9 +191,9 @@ export default function Review() {
             
             <TabsContent value="data" className="flex-1 p-0 m-0 overflow-hidden flex flex-col data-[state=inactive]:hidden">
               {extraction ? (
-                <div className="flex-1 flex flex-col p-4">
+                <div className="flex-1 flex flex-col p-3 sm:p-4">
                   {jsonError && (
-                    <div className="mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-start gap-2">
+                    <div className="mb-3 sm:mb-4 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-start gap-2">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       {jsonError}
                     </div>
@@ -178,13 +202,13 @@ export default function Review() {
                     value={jsonStr}
                     onChange={(e) => setJsonStr(e.target.value)}
                     readOnly={!isReviewRequired}
-                    className="flex-1 font-mono text-xs leading-relaxed resize-none focus-visible:ring-1 bg-background/50 border-border/50"
+                    className="flex-1 font-mono text-xs leading-relaxed resize-none focus-visible:ring-1 bg-background/50 border-border/50 min-h-[250px] sm:min-h-0"
                     spellCheck={false}
                     data-testid="textarea-json-editor"
                   />
                 </div>
               ) : (
-                <div className="p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full">
+                <div className="p-6 sm:p-8 text-center text-muted-foreground flex flex-col items-center justify-center h-full min-h-[200px]">
                   <AlertTriangle className="h-8 w-8 mb-4 opacity-50" />
                   <p data-testid="text-no-extraction">No extraction data available yet.</p>
                   {isPending && (
@@ -197,7 +221,7 @@ export default function Review() {
               )}
             </TabsContent>
 
-            <TabsContent value="validation" className="flex-1 p-4 m-0 overflow-y-auto data-[state=inactive]:hidden">
+            <TabsContent value="validation" className="flex-1 p-3 sm:p-4 m-0 overflow-y-auto data-[state=inactive]:hidden">
                {extraction?.validationReportJson ? (
                  <div className="space-y-4">
                    {(extraction.validationReportJson as any)?.passed === false && (
@@ -212,7 +236,7 @@ export default function Review() {
                        All validation rules passed
                      </div>
                    )}
-                   <pre className="text-xs font-mono text-muted-foreground bg-black/20 p-4 rounded-lg overflow-x-auto border border-border/50" data-testid="text-validation-report">
+                   <pre className="text-xs font-mono text-muted-foreground bg-black/20 p-3 sm:p-4 rounded-lg overflow-x-auto border border-border/50" data-testid="text-validation-report">
                      {JSON.stringify(extraction.validationReportJson, null, 2)}
                    </pre>
                  </div>

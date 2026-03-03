@@ -91,27 +91,27 @@ export default function Upload() {
 
   if (!selectedDocType) {
     return (
-      <div className="max-w-3xl mx-auto mt-10">
-        <div className="mb-8">
-          <h2 className="text-3xl font-display font-bold tracking-tight" data-testid="text-upload-title">Upload Document</h2>
-          <p className="text-muted-foreground mt-2">Select the type of document you want to upload.</p>
+      <div className="max-w-3xl mx-auto">
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight" data-testid="text-upload-title">Upload Document</h2>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">Select the type of document you want to upload.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           {DOC_TYPES.map((docType) => (
             <Card
               key={docType.id}
-              className="border-border/50 hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md"
+              className="border-border/50 hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md active:scale-[0.98]"
               onClick={() => setSelectedDocType(docType.id)}
               data-testid={`card-doctype-${docType.id}`}
             >
-              <CardContent className="p-6 flex items-start gap-4">
-                <div className="p-3 rounded-xl bg-primary/10 text-primary shrink-0">
-                  <docType.icon className="h-6 w-6" />
+              <CardContent className="p-4 sm:p-6 flex items-start gap-3 sm:gap-4">
+                <div className="p-2.5 sm:p-3 rounded-xl bg-primary/10 text-primary shrink-0">
+                  <docType.icon className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{docType.label}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{docType.description}</p>
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-base sm:text-lg">{docType.label}</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">{docType.description}</p>
                 </div>
               </CardContent>
             </Card>
@@ -124,50 +124,76 @@ export default function Upload() {
   const selectedType = DOC_TYPES.find(d => d.id === selectedDocType);
 
   return (
-    <div className="max-w-2xl mx-auto mt-10">
-      <div className="mb-8">
-        <Button variant="ghost" size="sm" onClick={() => setSelectedDocType(null)} className="gap-2 mb-4" data-testid="button-back-doctype">
+    <div className="max-w-2xl mx-auto">
+      <div className="mb-6 sm:mb-8">
+        <Button variant="ghost" size="sm" onClick={() => setSelectedDocType(null)} className="gap-2 mb-3 sm:mb-4 -ml-2" data-testid="button-back-doctype">
           <ArrowLeft className="h-4 w-4" />
-          Change Document Type
+          Change Type
         </Button>
-        <h2 className="text-3xl font-display font-bold tracking-tight" data-testid="text-upload-title">
+        <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight" data-testid="text-upload-title">
           Upload {selectedType?.label}
         </h2>
-        <p className="text-muted-foreground mt-2">Upload or capture your document for secure processing.</p>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">Upload or capture your document for secure processing.</p>
       </div>
 
-      <Card className="border-border/50 shadow-xl bg-card">
-        <CardContent className="p-8">
-          <div
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            className={`
-              relative flex flex-col items-center justify-center w-full h-64 
-              border-2 border-dashed rounded-2xl transition-all duration-200
-              ${isDragging ? 'border-primary bg-primary/5 scale-[1.02]' : 'border-border/60 hover:border-primary/50 hover:bg-muted/30'}
-              ${isUploading ? 'opacity-50 pointer-events-none' : ''}
-            `}
-            data-testid="drop-zone"
+      <div className="space-y-4">
+        <div className="sm:hidden grid grid-cols-2 gap-3">
+          <div className="relative">
+            <Button variant="secondary" className="w-full h-14 gap-2 text-sm font-medium shadow-sm" data-testid="button-browse-mobile">
+              <FileText className="h-5 w-5" />
+              Browse Files
+            </Button>
+            <input
+              type="file"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onChange={onFileInput}
+              disabled={isUploading}
+              accept=".pdf,.png,.jpg,.jpeg"
+              data-testid="input-file-mobile"
+            />
+          </div>
+          <Button
+            variant="default"
+            className="w-full h-14 gap-2 text-sm font-medium shadow-lg shadow-primary/20"
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={isUploading}
+            data-testid="button-camera-mobile"
           >
+            <Camera className="h-5 w-5" />
+            Scan Doc
+          </Button>
+        </div>
+
+        <Card className="border-border/50 shadow-xl bg-card">
+          <CardContent className="p-4 sm:p-8">
             {isUploading ? (
-              <div className="flex flex-col items-center gap-4 w-full max-w-xs">
+              <div className="flex flex-col items-center gap-4 py-8 sm:py-12 w-full">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <div className="w-full space-y-2 text-center">
+                <div className="w-full max-w-xs space-y-2 text-center">
                   <p className="text-sm font-medium">Uploading securely...</p>
                   <Progress value={progress} className="h-2" />
                 </div>
               </div>
             ) : (
-              <>
-                <div className="p-4 rounded-full bg-primary/10 text-primary mb-4">
-                  <UploadCloud className="h-10 w-10" />
+              <div
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                className={`
+                  relative flex flex-col items-center justify-center w-full py-10 sm:py-16 sm:h-64 
+                  border-2 border-dashed rounded-2xl transition-all duration-200
+                  ${isDragging ? 'border-primary bg-primary/5 scale-[1.02]' : 'border-border/60 hover:border-primary/50 hover:bg-muted/30'}
+                `}
+                data-testid="drop-zone"
+              >
+                <div className="p-3 sm:p-4 rounded-full bg-primary/10 text-primary mb-3 sm:mb-4">
+                  <UploadCloud className="h-8 w-8 sm:h-10 sm:w-10" />
                 </div>
-                <h3 className="text-xl font-semibold mb-2">Drag & Drop file here</h3>
-                <p className="text-sm text-muted-foreground mb-6 text-center max-w-xs">
+                <h3 className="text-lg sm:text-xl font-semibold mb-1 sm:mb-2">Drag & Drop file here</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-4 sm:mb-6 text-center max-w-xs px-4">
                   Supports PDF, PNG, JPG, JPEG up to 50MB
                 </p>
-                <div className="flex gap-3">
+                <div className="hidden sm:flex gap-3">
                   <div className="relative">
                     <Button variant="secondary" className="px-6 shadow-sm gap-2" data-testid="button-browse">
                       <FileText className="h-4 w-4" />
@@ -192,32 +218,33 @@ export default function Upload() {
                     <Camera className="h-4 w-4" />
                     Take Photo
                   </Button>
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="hidden"
-                    onChange={onFileInput}
-                    data-testid="input-camera"
-                  />
                 </div>
-              </>
+              </div>
             )}
-          </div>
 
-          {error && (
-            <div className="mt-6 p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
-              <p className="text-sm text-destructive" data-testid="text-upload-error">{error.message}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            {error && (
+              <div className="mt-4 sm:mt-6 p-3 sm:p-4 rounded-lg bg-destructive/10 border border-destructive/20 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+                <p className="text-sm text-destructive" data-testid="text-upload-error">{error.message}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={onFileInput}
+        data-testid="input-camera"
+      />
       
-      <div className="mt-8 flex items-center justify-center gap-6 text-sm text-muted-foreground">
+      <div className="mt-6 sm:mt-8 flex items-center justify-center gap-4 sm:gap-6 text-xs sm:text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
-          <CheckCircle2 className="h-4 w-4 text-emerald-500" /> End-to-end Encrypted
+          <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Encrypted
         </div>
         <div className="flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-500" /> SOC2 Compliant
