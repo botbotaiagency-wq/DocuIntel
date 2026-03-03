@@ -1,9 +1,17 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+function getOpenAI(): OpenAI {
+  const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "OpenAI API key not set. Set AI_INTEGRATIONS_OPENAI_API_KEY or OPENAI_API_KEY in .env to use document extraction."
+    );
+  }
+  return new OpenAI({
+    apiKey,
+    baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+  });
+}
 
 interface ExtractionResult {
   extractedJson: Record<string, any>;
@@ -175,6 +183,7 @@ export async function extractDocument(
       text: "Extract all relevant data from this document image. Return only JSON.",
     });
 
+    const openai = getOpenAI();
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [

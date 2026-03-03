@@ -4,6 +4,10 @@ import { isAuthenticated } from "./replitAuth";
 import bcrypt from "bcryptjs";
 
 export function registerAuthRoutes(app: Express): void {
+  /** Dev-only: when DB is unavailable, accept admin/admin123 to explore the UI. */
+  const DEV_USER_ID = "dev_admin";
+  const DEV_CREDENTIALS = { username: "admin", password: "admin123" };
+
   app.post("/api/auth/login", async (req: any, res) => {
     try {
       const { username, password } = req.body;
@@ -11,21 +15,39 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(400).json({ message: "Username and password are required" });
       }
 
-      const user = await authStorage.getUserByUsername(username);
-      if (!user || !user.passwordHash) {
-        return res.status(401).json({ message: "Invalid username or password" });
-      }
+      try {
+        const user = await authStorage.getUserByUsername(username);
+        if (!user || !user.passwordHash) {
+          if (process.env.NODE_ENV === "development" && username === DEV_CREDENTIALS.username && password === DEV_CREDENTIALS.password) {
+            req.session.userId = DEV_USER_ID;
+            req.session.save(() => {
+              res.json({ id: DEV_USER_ID, username: DEV_CREDENTIALS.username, firstName: "Local Dev Admin", role: "Admin", displayName: "Local Dev Admin" });
+            });
+            return;
+          }
+          return res.status(401).json({ message: "Invalid username or password" });
+        }
 
-      const valid = await bcrypt.compare(password, user.passwordHash);
-      if (!valid) {
-        return res.status(401).json({ message: "Invalid username or password" });
-      }
+        const valid = await bcrypt.compare(password, user.passwordHash);
+        if (!valid) {
+          return res.status(401).json({ message: "Invalid username or password" });
+        }
 
-      req.session.userId = user.id;
-      req.session.save(() => {
-        const { passwordHash, ...safeUser } = user;
-        res.json(safeUser);
-      });
+        req.session.userId = user.id;
+        req.session.save(() => {
+          const { passwordHash, ...safeUser } = user;
+          res.json(safeUser);
+        });
+      } catch (dbError: any) {
+        if (process.env.NODE_ENV === "development" && username === DEV_CREDENTIALS.username && password === DEV_CREDENTIALS.password) {
+          req.session.userId = DEV_USER_ID;
+          req.session.save(() => {
+            res.json({ id: DEV_USER_ID, username: DEV_CREDENTIALS.username, firstName: "Local Dev Admin", role: "Admin", displayName: "Local Dev Admin" });
+          });
+          return;
+        }
+        throw dbError;
+      }
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed" });
@@ -47,6 +69,9 @@ export function registerAuthRoutes(app: Express): void {
       const userId = req.session.userId || req.user?.claims?.sub;
       if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
+      }
+      if (userId === DEV_USER_ID) {
+        return res.json({ id: DEV_USER_ID, username: "admin", firstName: "Local Dev Admin", role: "Admin", displayName: "Local Dev Admin" });
       }
       const user = await authStorage.getUser(userId);
       if (!user) {

@@ -11,9 +11,9 @@ export function Layout({ children }: { children: ReactNode }) {
     if (location === "/review") return "Review Queue";
     if (location === "/upload") return "Upload";
     if (location.startsWith("/documents/")) return "Document Review";
-    if (location.startsWith("/admin/schemas")) return "Schemas";
+    if (location.startsWith("/admin/schemas")) return "Document Schemas";
     if (location.startsWith("/admin/annotations")) return "Annotations";
-    if (location.startsWith("/admin/settings")) return "Settings";
+    if (location.startsWith("/admin/settings")) return "Organization Settings";
     if (location.startsWith("/audit")) return "Audit Log";
     return "DocuIntel";
   };

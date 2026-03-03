@@ -16,7 +16,8 @@ import Dashboard from "@/pages/Dashboard";
 import Upload from "@/pages/Upload";
 import Review from "@/pages/Review";
 import AuditLog from "@/pages/AuditLog";
-import Admin from "@/pages/Admin";
+import AdminSchemas from "@/pages/AdminSchemas";
+import AdminOrgSettings from "@/pages/AdminOrgSettings";
 import ReviewQueue from "@/pages/ReviewQueue";
 import Annotate from "@/pages/Annotate";
 
@@ -27,8 +28,8 @@ function Router() {
       <Route path="/review" component={ReviewQueue} />
       <Route path="/upload" component={Upload} />
       <Route path="/documents/:id" component={Review} />
-      <Route path="/admin/schemas" component={Admin} />
-      <Route path="/admin/settings" component={Admin} />
+      <Route path="/admin/schemas" component={AdminSchemas} />
+      <Route path="/admin/settings" component={AdminOrgSettings} />
       <Route path="/admin/annotations" component={Annotate} />
       <Route path="/audit" component={AuditLog} />
       <Route component={NotFound} />

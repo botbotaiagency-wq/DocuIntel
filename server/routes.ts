@@ -3,7 +3,8 @@ import { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
+import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { getObjectStorageService } from "./objectStorageFactory";
 import { z } from "zod";
 import { extractDocument } from "./extraction";
 import bcrypt from "bcryptjs";
@@ -12,12 +13,15 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+export const DEV_USER_ID = "dev_admin";
+
 function getUserId(req: any): string {
   return req.session?.userId || req.user?.claims?.sub;
 }
 
 async function getUserRole(req: any): Promise<string> {
   const userId = getUserId(req);
+  if (userId === DEV_USER_ID) return "Admin";
   const profile = await storage.getUserProfile(userId);
   return profile?.role || "Viewer";
 }
@@ -47,6 +51,9 @@ export async function registerRoutes(
 
   app.get(api.documents.list.path, isAuthenticated, async (req, res) => {
     const userId = getUserId(req);
+    if (userId === DEV_USER_ID) {
+      return res.json([]);
+    }
     const profile = await storage.getUserProfile(userId);
     const role = profile?.role || "Viewer";
 
@@ -96,7 +103,7 @@ export async function registerRoutes(
     }
     
     try {
-      const objectStorageService = new ObjectStorageService();
+      const objectStorageService = getObjectStorageService();
       const signedUrl = await objectStorageService.getSignedViewUrl(doc.storageKey);
       res.json({ ...doc, storageKey: signedUrl });
     } catch (error) {
@@ -115,7 +122,7 @@ export async function registerRoutes(
     }
     
     try {
-      const objectStorageService = new ObjectStorageService();
+      const objectStorageService = getObjectStorageService();
       const file = await objectStorageService.getObjectEntityFile(doc.storageKey);
       if (doc.mimeType) {
         res.set("Content-Type", doc.mimeType);
@@ -144,7 +151,7 @@ export async function registerRoutes(
     const docType = doc.docType || "Other";
 
     try {
-      const objectStorageService = new ObjectStorageService();
+      const objectStorageService = getObjectStorageService();
       const file = await objectStorageService.getObjectEntityFile(doc.storageKey);
       const [fileBuffer] = await file.download();
       const mimeType = doc.mimeType || "application/pdf";
@@ -304,11 +311,13 @@ export async function registerRoutes(
   });
 
   app.get(api.audit.list.path, isAuthenticated, requireAdmin, async (req, res) => {
+    if (getUserId(req) === DEV_USER_ID) return res.json([]);
     const events = await storage.getAuditEvents();
     res.json(events);
   });
 
   app.get(api.schemas.list.path, isAuthenticated, async (req, res) => {
+    if (getUserId(req) === DEV_USER_ID) return res.json([]);
     const schemas = await storage.getSchemas();
     res.json(schemas);
   });
@@ -350,6 +359,7 @@ export async function registerRoutes(
   });
 
   app.get(api.users.list.path, isAuthenticated, requireAdmin, async (req, res) => {
+    if (getUserId(req) === DEV_USER_ID) return res.json([]);
     const profiles = await storage.getUserProfiles();
     res.json(profiles);
   });
@@ -411,7 +421,7 @@ export async function registerRoutes(
       if (!annotation || !annotation.templateStorageKey) {
         return res.status(404).json({ message: "No template found" });
       }
-      const objectStorageService = new ObjectStorageService();
+      const objectStorageService = getObjectStorageService();
       const file = await objectStorageService.getObjectEntityFile(annotation.templateStorageKey);
       res.set("Content-Type", "image/png");
       res.set("Content-Disposition", "inline");
@@ -426,11 +436,13 @@ export async function registerRoutes(
 
   // Annotation routes
   app.get(api.annotations.list.path, isAuthenticated, requireAdmin, async (req, res) => {
+    if (getUserId(req) === DEV_USER_ID) return res.json([]);
     const annotations = await storage.getAnnotations();
     res.json(annotations);
   });
 
   app.get(api.annotations.getByDocType.path, isAuthenticated, requireAdmin, async (req, res) => {
+    if (getUserId(req) === DEV_USER_ID) return res.status(404).json({ message: "No annotation found for this document type" });
     const annotation = await storage.getAnnotationByDocType(req.params.docType);
     if (!annotation) {
       return res.status(404).json({ message: "No annotation found for this document type" });
