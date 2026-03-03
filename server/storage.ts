@@ -1,7 +1,7 @@
-import { type Document, type Extraction, type AuditEvent, type DocumentSchema, type Org, type UserProfile } from "@shared/schema";
+import { type Document, type Extraction, type AuditEvent, type DocumentSchema, type Org, type UserProfile, type DocumentAnnotation } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, isNull } from "drizzle-orm";
-import { documents, extractions, auditEvents, documentSchemas, orgs, userProfiles, users } from "@shared/schema";
+import { documents, extractions, auditEvents, documentSchemas, orgs, userProfiles, users, documentAnnotations } from "@shared/schema";
 
 export interface IStorage {
   // Orgs
@@ -39,6 +39,12 @@ export interface IStorage {
   updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile>;
   createStaffUser(userId: string, displayName: string, username: string, passwordHash: string): Promise<void>;
   getUserByUsername(username: string): Promise<any>;
+
+  // Annotations
+  getAnnotationByDocType(docType: string): Promise<DocumentAnnotation | undefined>;
+  getAnnotations(): Promise<DocumentAnnotation[]>;
+  createAnnotation(annotation: Partial<DocumentAnnotation>): Promise<DocumentAnnotation>;
+  updateAnnotation(id: number, updates: Partial<DocumentAnnotation>): Promise<DocumentAnnotation>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -192,6 +198,25 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<any> {
     const [user] = await db.select().from(users).where(eq(users.username, username));
     return user;
+  }
+
+  async getAnnotationByDocType(docType: string): Promise<DocumentAnnotation | undefined> {
+    const [annotation] = await db.select().from(documentAnnotations).where(eq(documentAnnotations.docType, docType));
+    return annotation;
+  }
+
+  async getAnnotations(): Promise<DocumentAnnotation[]> {
+    return await db.select().from(documentAnnotations).orderBy(desc(documentAnnotations.createdAt));
+  }
+
+  async createAnnotation(annotation: Partial<DocumentAnnotation>): Promise<DocumentAnnotation> {
+    const [newAnnotation] = await db.insert(documentAnnotations).values(annotation as DocumentAnnotation).returning();
+    return newAnnotation;
+  }
+
+  async updateAnnotation(id: number, updates: Partial<DocumentAnnotation>): Promise<DocumentAnnotation> {
+    const [updated] = await db.update(documentAnnotations).set({ ...updates, updatedAt: new Date() }).where(eq(documentAnnotations.id, id)).returning();
+    return updated;
   }
 }
 

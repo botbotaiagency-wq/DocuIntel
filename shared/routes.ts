@@ -171,6 +171,60 @@ export const api = {
       },
     },
   },
+  annotations: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/annotations' as const,
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+    getByDocType: {
+      method: 'GET' as const,
+      path: '/api/annotations/:docType' as const,
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/annotations' as const,
+      input: z.object({
+        docType: z.string(),
+        templateStorageKey: z.string().optional(),
+        annotations: z.array(z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number(),
+          height: z.number(),
+          label: z.string(),
+        })),
+      }),
+      responses: {
+        201: z.any(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/annotations/:id' as const,
+      input: z.object({
+        templateStorageKey: z.string().optional(),
+        annotations: z.array(z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number(),
+          height: z.number(),
+          label: z.string(),
+        })).optional(),
+      }),
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
   orgs: {
     settings: {
       method: 'PATCH' as const,
