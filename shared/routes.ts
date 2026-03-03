@@ -149,7 +149,9 @@ export const api = {
       method: 'POST' as const,
       path: '/api/users' as const,
       input: z.object({
-        displayName: z.string(),
+        displayName: z.string().min(1, "Name is required"),
+        username: z.string().min(3, "Username must be at least 3 characters"),
+        password: z.string().min(6, "Password must be at least 6 characters"),
         role: z.string(),
       }),
       responses: {

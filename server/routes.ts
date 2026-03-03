@@ -6,6 +6,32 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
 import { z } from "zod";
 import { extractDocument } from "./extraction";
+import bcrypt from "bcryptjs";
+
+function getUserId(req: any): string {
+  return req.session?.userId || req.user?.claims?.sub;
+}
+
+async function getUserRole(req: any): Promise<string> {
+  const userId = getUserId(req);
+  const profile = await storage.getUserProfile(userId);
+  return profile?.role || "Viewer";
+}
+
+async function canAccessDocument(req: any, doc: any): Promise<boolean> {
+  const role = await getUserRole(req);
+  if (role === "Admin") return true;
+  return doc.uploaderUserId === getUserId(req);
+}
+
+function requireAdmin(req: any, res: any, next: any) {
+  getUserRole(req).then(role => {
+    if (role !== "Admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  });
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -16,20 +42,30 @@ export async function registerRoutes(
   registerObjectStorageRoutes(app);
 
   app.get(api.documents.list.path, isAuthenticated, async (req, res) => {
-    const documents = await storage.getDocuments();
-    res.json(documents);
+    const userId = getUserId(req);
+    const profile = await storage.getUserProfile(userId);
+    const role = profile?.role || "Viewer";
+
+    if (role === "Admin") {
+      const docs = await storage.getDocumentsWithUploader();
+      res.json(docs);
+    } else {
+      const docs = await storage.getDocumentsByUser(userId);
+      res.json(docs);
+    }
   });
 
   app.post(api.documents.upload.path, isAuthenticated, async (req, res) => {
     try {
       const input = api.documents.upload.input.parse(req.body);
+      const userId = getUserId(req);
       const doc = await storage.createDocument({
         ...input,
-        uploaderUserId: (req as any).user.claims.sub,
+        uploaderUserId: userId,
       });
       
       await storage.createAuditEvent({
-        userId: (req as any).user.claims.sub,
+        userId,
         eventType: "upload",
         docId: doc.id,
       });
@@ -51,6 +87,9 @@ export async function registerRoutes(
     if (!doc) {
       return res.status(404).json({ message: "Document not found" });
     }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     
     try {
       const objectStorageService = new ObjectStorageService();
@@ -66,6 +105,9 @@ export async function registerRoutes(
     const doc = await storage.getDocument(Number(req.params.id));
     if (!doc) {
       return res.status(404).json({ message: "Document not found" });
+    }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
     }
     
     try {
@@ -88,6 +130,9 @@ export async function registerRoutes(
     const doc = await storage.getDocument(Number(req.params.id));
     if (!doc) {
       return res.status(404).json({ message: "Document not found" });
+    }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     await storage.updateDocumentStatus(doc.id, "processing");
@@ -112,7 +157,7 @@ export async function registerRoutes(
       await storage.updateDocumentStatus(doc.id, "review_required");
 
       await storage.createAuditEvent({
-        userId: (req as any).user.claims.sub,
+        userId: getUserId(req),
         eventType: "extract",
         docId: doc.id,
       });
@@ -126,6 +171,13 @@ export async function registerRoutes(
   });
 
   app.get(api.documents.getExtraction.path, isAuthenticated, async (req, res) => {
+    const doc = await storage.getDocument(Number(req.params.id));
+    if (!doc) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const ext = await storage.getLatestExtraction(Number(req.params.id));
     if (!ext) {
       return res.status(404).json({ message: "Extraction not found" });
@@ -134,6 +186,13 @@ export async function registerRoutes(
   });
 
   app.post(api.documents.reviewApprove.path, isAuthenticated, async (req, res) => {
+    const doc = await storage.getDocument(Number(req.params.id));
+    if (!doc) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const ext = await storage.getLatestExtraction(Number(req.params.id));
     if (!ext) {
       return res.status(404).json({ message: "Extraction not found" });
@@ -142,7 +201,7 @@ export async function registerRoutes(
     await storage.updateDocumentStatus(Number(req.params.id), "completed");
     
     await storage.createAuditEvent({
-      userId: (req as any).user.claims.sub,
+      userId: getUserId(req),
       eventType: "review_approve",
       docId: Number(req.params.id),
     });
@@ -151,6 +210,13 @@ export async function registerRoutes(
   });
 
   app.post(api.documents.reviewUpdate.path, isAuthenticated, async (req, res) => {
+    const doc = await storage.getDocument(Number(req.params.id));
+    if (!doc) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const ext = await storage.getLatestExtraction(Number(req.params.id));
     if (!ext) {
       return res.status(404).json({ message: "Extraction not found" });
@@ -173,19 +239,26 @@ export async function registerRoutes(
   });
 
   app.post(api.documents.delete.path, isAuthenticated, async (req, res) => {
+    const doc = await storage.getDocument(Number(req.params.id));
+    if (!doc) {
+      return res.status(404).json({ message: "Not found" });
+    }
+    if (!(await canAccessDocument(req, doc))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     const success = await storage.deleteDocument(Number(req.params.id));
     if (!success) {
       return res.status(404).json({ message: "Not found" });
     }
     await storage.createAuditEvent({
-      userId: (req as any).user.claims.sub,
+      userId: getUserId(req),
       eventType: "delete",
       docId: Number(req.params.id),
     });
     res.json({ success: true });
   });
 
-  app.get(api.audit.list.path, isAuthenticated, async (req, res) => {
+  app.get(api.audit.list.path, isAuthenticated, requireAdmin, async (req, res) => {
     const events = await storage.getAuditEvents();
     res.json(events);
   });
@@ -195,7 +268,7 @@ export async function registerRoutes(
     res.json(schemas);
   });
 
-  app.post(api.schemas.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.schemas.create.path, isAuthenticated, requireAdmin, async (req, res) => {
     try {
       const input = api.schemas.create.input.parse(req.body);
       const schema = await storage.createSchema(input);
@@ -211,7 +284,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch(api.schemas.update.path, isAuthenticated, async (req, res) => {
+  app.patch(api.schemas.update.path, isAuthenticated, requireAdmin, async (req, res) => {
     const schema = await storage.getSchema(Number(req.params.id));
     if (!schema) {
       return res.status(404).json({ message: "Schema not found" });
@@ -231,23 +304,30 @@ export async function registerRoutes(
     }
   });
 
-  app.get(api.users.list.path, isAuthenticated, async (req, res) => {
+  app.get(api.users.list.path, isAuthenticated, requireAdmin, async (req, res) => {
     const profiles = await storage.getUserProfiles();
     res.json(profiles);
   });
 
-  app.post(api.users.create.path, isAuthenticated, async (req, res) => {
+  app.post(api.users.create.path, isAuthenticated, requireAdmin, async (req, res) => {
     try {
       const input = api.users.create.input.parse(req.body);
+
+      const existing = await storage.getUserByUsername(input.username);
+      if (existing) {
+        return res.status(400).json({ message: "Username already taken", field: "username" });
+      }
+
       const userId = `staff_${Date.now()}`;
+      const passwordHash = await bcrypt.hash(input.password, 10);
       
-      await storage.createStaffUser(userId, input.displayName);
+      await storage.createStaffUser(userId, input.displayName, input.username, passwordHash);
       const profile = await storage.createUserProfile({
         userId,
         role: input.role,
         displayName: input.displayName,
       });
-      res.status(201).json({ ...profile, displayName: input.displayName });
+      res.status(201).json({ ...profile, displayName: input.displayName, username: input.username });
     } catch(err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({
@@ -259,7 +339,7 @@ export async function registerRoutes(
     }
   });
 
-  app.patch(api.users.updateRole.path, isAuthenticated, async (req, res) => {
+  app.patch(api.users.updateRole.path, isAuthenticated, requireAdmin, async (req, res) => {
     const profile = await storage.getUserProfile(req.params.userId);
     if (!profile) {
       return res.status(404).json({ message: "User not found" });

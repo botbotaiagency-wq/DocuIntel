@@ -1,14 +1,29 @@
-import { ShieldCheck, FileSearch, LockKeyhole } from "lucide-react";
+import { useState } from "react";
+import { ShieldCheck, FileSearch, LockKeyhole, Loader2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function Landing() {
-  const handleLogin = () => {
-    window.location.href = "/api/login";
+  const { login, isLoggingIn, loginError } = useAuth();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    try {
+      await login({ username, password });
+    } catch (err: any) {
+      setError(err.message || "Login failed");
+    }
   };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row overflow-hidden">
-      {/* Left Panel: Branding & Hero */}
       <div className="flex-1 relative flex flex-col justify-center p-8 md:p-16 lg:p-24 border-r border-border/50 bg-card/30 z-10">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -left-40 w-96 h-96 bg-primary/20 rounded-full blur-[100px] opacity-50"></div>
@@ -54,27 +69,80 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* Right Panel: Auth */}
       <div className="w-full md:w-[450px] lg:w-[500px] flex flex-col justify-center p-8 md:p-12 lg:p-16 bg-background relative z-20 shadow-2xl">
         <div className="w-full max-w-sm mx-auto space-y-8">
           <div className="text-center space-y-2">
-            <h2 className="text-3xl font-display font-bold tracking-tight">Welcome Back</h2>
-            <p className="text-muted-foreground">Authenticate to access your workspace</p>
+            <h2 className="text-3xl font-display font-bold tracking-tight" data-testid="text-login-title">Staff Login</h2>
+            <p className="text-muted-foreground">Sign in with your staff credentials</p>
           </div>
 
-          <div className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {(error || loginError) && (
+              <div className="bg-destructive/10 text-destructive text-sm px-4 py-3 rounded-lg border border-destructive/20" data-testid="text-login-error">
+                {error || loginError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                required
+                autoComplete="username"
+                data-testid="input-username"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  required
+                  autoComplete="current-password"
+                  className="pr-10"
+                  data-testid="input-password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  data-testid="button-toggle-password"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
             <Button 
-              onClick={handleLogin} 
+              type="submit"
               size="lg" 
               className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transition-all"
+              disabled={isLoggingIn}
+              data-testid="button-login"
             >
-              Continue with Replit
+              {isLoggingIn ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </Button>
             
             <p className="text-xs text-center text-muted-foreground px-4">
-              By authenticating, you agree to our Terms of Service and Privacy Policy. Secure SSO provided by Replit.
+              Contact your administrator if you need access credentials.
             </p>
-          </div>
+          </form>
         </div>
       </div>
     </div>
