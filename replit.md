@@ -64,6 +64,19 @@ A web application for legal and identity document extraction (PDF/PNG/JPG). Supp
 - Org: Update settings
 - Auth: Login, logout, get current user
 
+## Mobile Optimization
+- All pages are fully responsive with mobile-first breakpoints (sm/md/lg)
+- Layout uses `100dvh` for proper mobile viewport height
+- Dashboard switches from table to card layout on mobile (hidden md:block / md:hidden)
+- Upload page shows prominent "Scan Doc" and "Browse Files" buttons on mobile, with full drag-and-drop on desktop
+- Camera capture uses `capture="environment"` for rear camera scanning on phones
+- Review page has Document/Data toggle on mobile (stacks vertically instead of side-by-side)
+- ReviewQueue and AuditLog use card layout on mobile
+- Admin page: users table becomes card list on mobile, full-width buttons and inputs
+- All dialogs constrained to `max-w-[90vw]` on mobile
+- Touch-friendly: larger tap targets (h-11 inputs, h-14 mobile buttons), active:scale feedback
+- Landing/login page: hero panel hidden on mobile, login form takes full screen with branding
+
 ## Important Notes
 - Signed GCS URLs fail for iframe PDF preview (Chrome blocks cross-origin). Use `/api/documents/:id/preview` proxy instead.
 - Object storage uses presigned URL flow for uploads (2-step: get URL, then PUT binary)
