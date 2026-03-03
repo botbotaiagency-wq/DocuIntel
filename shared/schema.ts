@@ -16,7 +16,8 @@ export const orgs = pgTable("orgs", {
 export const userProfiles = pgTable("user_profiles", {
   userId: varchar("user_id").primaryKey().references(() => users.id),
   orgId: integer("org_id").references(() => orgs.id),
-  role: text("role").default("Viewer").notNull(), // Admin, Reviewer, Uploader, Viewer
+  role: text("role").default("Viewer").notNull(),
+  displayName: text("display_name"),
 });
 
 export const documents = pgTable("documents", {
@@ -27,8 +28,9 @@ export const documents = pgTable("documents", {
   originalFilename: text("original_filename").notNull(),
   sha256: text("sha256"),
   mimeType: text("mime_type"),
+  docType: text("doc_type"),
   pages: integer("pages").default(1),
-  status: text("status").notNull().default("pending"), // pending, processing, review_required, completed, failed
+  status: text("status").notNull().default("pending"),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
 });

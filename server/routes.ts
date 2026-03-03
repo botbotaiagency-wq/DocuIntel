@@ -5,16 +5,14 @@ import { api } from "@shared/routes";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
 import { z } from "zod";
+import { extractDocument } from "./extraction";
 
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Setup Auth FIRST
   await setupAuth(app);
   registerAuthRoutes(app);
-  
-  // Setup Object Storage Routes
   registerObjectStorageRoutes(app);
 
   app.get(api.documents.list.path, isAuthenticated, async (req, res) => {
@@ -27,12 +25,10 @@ export async function registerRoutes(
       const input = api.documents.upload.input.parse(req.body);
       const doc = await storage.createDocument({
         ...input,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         uploaderUserId: (req as any).user.claims.sub,
       });
       
       await storage.createAuditEvent({
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         userId: (req as any).user.claims.sub,
         eventType: "upload",
         docId: doc.id,
@@ -56,7 +52,6 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Document not found" });
     }
     
-    // Generate a signed URL for the document preview
     try {
       const objectStorageService = new ObjectStorageService();
       const signedUrl = await objectStorageService.getSignedViewUrl(doc.storageKey);
@@ -67,41 +62,67 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/documents/:id/preview", isAuthenticated, async (req, res) => {
+    const doc = await storage.getDocument(Number(req.params.id));
+    if (!doc) {
+      return res.status(404).json({ message: "Document not found" });
+    }
+    
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.getObjectEntityFile(doc.storageKey);
+      if (doc.mimeType) {
+        res.set("Content-Type", doc.mimeType);
+      }
+      res.set("Content-Disposition", "inline");
+      await objectStorageService.downloadObject(file, res, 300);
+    } catch (error) {
+      console.error("Error streaming document:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Error loading document preview" });
+      }
+    }
+  });
+
   app.post(api.documents.extract.path, isAuthenticated, async (req, res) => {
     const doc = await storage.getDocument(Number(req.params.id));
     if (!doc) {
       return res.status(404).json({ message: "Document not found" });
     }
 
-    // Mark document as processing
     await storage.updateDocumentStatus(doc.id, "processing");
 
-    // In a real app, you would kick off a background job or orchestrate an agent workflow here.
-    // For this MVP, we create a mock extraction.
-    
-    // Simple logic to "retrieve" something based on filename if it's a PDF
-    const mockData = doc.originalFilename.toLowerCase().includes('adrian') 
-      ? { full_name: "Adrian Tan", id_number: "850101-14-5231", date_of_birth: "1985-01-01", gender: "Male" }
-      : { full_name: "Mock User", id_number: "XXXXXX-XX-XXXX" };
+    const docType = doc.docType || "Other";
 
-    const extraction = await storage.createExtraction({
-      documentId: doc.id,
-      docType: "IC",
-      extractedJson: mockData,
-      confidence: 0.92,
-      riskLevel: "LOW"
-    });
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const signedUrl = await objectStorageService.getSignedViewUrl(doc.storageKey);
 
-    await storage.updateDocumentStatus(doc.id, "review_required");
+      const result = await extractDocument(signedUrl, docType, doc.mimeType || "application/pdf");
 
-    await storage.createAuditEvent({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      userId: (req as any).user.claims.sub,
-      eventType: "extract",
-      docId: doc.id,
-    });
+      const extraction = await storage.createExtraction({
+        documentId: doc.id,
+        docType,
+        extractedJson: result.extractedJson,
+        confidence: result.confidence,
+        riskLevel: result.riskLevel,
+        validationReportJson: result.validationReport,
+      });
 
-    res.json(extraction);
+      await storage.updateDocumentStatus(doc.id, "review_required");
+
+      await storage.createAuditEvent({
+        userId: (req as any).user.claims.sub,
+        eventType: "extract",
+        docId: doc.id,
+      });
+
+      res.json(extraction);
+    } catch (error: any) {
+      console.error("Extraction error:", error);
+      await storage.updateDocumentStatus(doc.id, "failed");
+      res.status(500).json({ message: "Extraction failed: " + error.message });
+    }
   });
 
   app.get(api.documents.getExtraction.path, isAuthenticated, async (req, res) => {
@@ -119,6 +140,13 @@ export async function registerRoutes(
     }
 
     await storage.updateDocumentStatus(Number(req.params.id), "completed");
+    
+    await storage.createAuditEvent({
+      userId: (req as any).user.claims.sub,
+      eventType: "review_approve",
+      docId: Number(req.params.id),
+    });
+
     res.json(ext);
   });
 
@@ -150,7 +178,6 @@ export async function registerRoutes(
       return res.status(404).json({ message: "Not found" });
     }
     await storage.createAuditEvent({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userId: (req as any).user.claims.sub,
       eventType: "delete",
       docId: Number(req.params.id),
@@ -173,6 +200,74 @@ export async function registerRoutes(
       const input = api.schemas.create.input.parse(req.body);
       const schema = await storage.createSchema(input);
       res.status(201).json(schema);
+    } catch(err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  app.patch(api.schemas.update.path, isAuthenticated, async (req, res) => {
+    const schema = await storage.getSchema(Number(req.params.id));
+    if (!schema) {
+      return res.status(404).json({ message: "Schema not found" });
+    }
+    try {
+      const input = api.schemas.update.input.parse(req.body);
+      const updated = await storage.updateSchema(schema.id, input);
+      res.json(updated);
+    } catch(err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  app.get(api.users.list.path, isAuthenticated, async (req, res) => {
+    const profiles = await storage.getUserProfiles();
+    res.json(profiles);
+  });
+
+  app.post(api.users.create.path, isAuthenticated, async (req, res) => {
+    try {
+      const input = api.users.create.input.parse(req.body);
+      const userId = `staff_${Date.now()}`;
+      
+      await storage.createStaffUser(userId, input.displayName);
+      const profile = await storage.createUserProfile({
+        userId,
+        role: input.role,
+        displayName: input.displayName,
+      });
+      res.status(201).json({ ...profile, displayName: input.displayName });
+    } catch(err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  app.patch(api.users.updateRole.path, isAuthenticated, async (req, res) => {
+    const profile = await storage.getUserProfile(req.params.userId);
+    if (!profile) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    try {
+      const input = api.users.updateRole.input.parse(req.body);
+      const updated = await storage.updateUserProfile(profile.userId, { role: input.role });
+      res.json(updated);
     } catch(err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({

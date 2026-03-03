@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@shared/routes";
+import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 
 export function useSchemas() {
@@ -25,6 +25,26 @@ export function useCreateSchema() {
       });
       if (!res.ok) throw new Error("Failed to create schema");
       return api.schemas.create.responses[201].parse(await res.json());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.schemas.list.path] });
+    },
+  });
+}
+
+export function useUpdateSchema() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: number } & z.infer<typeof api.schemas.update.input>) => {
+      const url = buildUrl(api.schemas.update.path, { id });
+      const res = await fetch(url, {
+        method: api.schemas.update.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update schema");
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.schemas.list.path] });

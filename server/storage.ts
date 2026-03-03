@@ -1,7 +1,7 @@
-import { type Document, type Extraction, type AuditEvent, type DocumentSchema, type Org } from "@shared/schema";
+import { type Document, type Extraction, type AuditEvent, type DocumentSchema, type Org, type UserProfile } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
-import { documents, extractions, auditEvents, documentSchemas, orgs } from "@shared/schema";
+import { eq, desc, and, isNull } from "drizzle-orm";
+import { documents, extractions, auditEvents, documentSchemas, orgs, userProfiles, users } from "@shared/schema";
 
 export interface IStorage {
   // Orgs
@@ -26,7 +26,16 @@ export interface IStorage {
 
   // Schemas
   getSchemas(): Promise<DocumentSchema[]>;
+  getSchema(id: number): Promise<DocumentSchema | undefined>;
   createSchema(schema: Partial<DocumentSchema>): Promise<DocumentSchema>;
+  updateSchema(id: number, updates: Partial<DocumentSchema>): Promise<DocumentSchema>;
+
+  // User Profiles
+  getUserProfiles(): Promise<any[]>;
+  getUserProfile(userId: string): Promise<UserProfile | undefined>;
+  createUserProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
+  updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile>;
+  createStaffUser(userId: string, displayName: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -38,10 +47,6 @@ export class DatabaseStorage implements IStorage {
   async updateOrg(id: number, updates: Partial<Org>): Promise<Org> {
     const [org] = await db.update(orgs).set(updates).where(eq(orgs.id, id)).returning();
     return org;
-  }
-
-  async getDocuments(): Promise<Document[]> {
-    return await db.select().from(documents).orderBy(desc(documents.createdAt));
   }
 
   async getDocument(id: number): Promise<Document | undefined> {
@@ -88,13 +93,65 @@ export class DatabaseStorage implements IStorage {
     return newEvent;
   }
 
+  async getDocuments(): Promise<Document[]> {
+    return await db.select().from(documents).where(isNull(documents.deletedAt)).orderBy(desc(documents.createdAt));
+  }
+
   async getSchemas(): Promise<DocumentSchema[]> {
     return await db.select().from(documentSchemas);
+  }
+
+  async getSchema(id: number): Promise<DocumentSchema | undefined> {
+    const [schema] = await db.select().from(documentSchemas).where(eq(documentSchemas.id, id));
+    return schema;
   }
 
   async createSchema(schema: Partial<DocumentSchema>): Promise<DocumentSchema> {
     const [newSchema] = await db.insert(documentSchemas).values(schema as DocumentSchema).returning();
     return newSchema;
+  }
+
+  async updateSchema(id: number, updates: Partial<DocumentSchema>): Promise<DocumentSchema> {
+    const [updated] = await db.update(documentSchemas).set(updates).where(eq(documentSchemas.id, id)).returning();
+    return updated;
+  }
+
+  async getUserProfiles(): Promise<any[]> {
+    const results = await db
+      .select({
+        userId: userProfiles.userId,
+        role: userProfiles.role,
+        orgId: userProfiles.orgId,
+        displayName: userProfiles.displayName,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+      })
+      .from(userProfiles)
+      .leftJoin(users, eq(userProfiles.userId, users.id));
+    return results;
+  }
+
+  async getUserProfile(userId: string): Promise<UserProfile | undefined> {
+    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
+    return profile;
+  }
+
+  async createUserProfile(profile: Partial<UserProfile>): Promise<UserProfile> {
+    const [newProfile] = await db.insert(userProfiles).values(profile as UserProfile).returning();
+    return newProfile;
+  }
+
+  async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
+    const [updated] = await db.update(userProfiles).set(updates).where(eq(userProfiles.userId, userId)).returning();
+    return updated;
+  }
+
+  async createStaffUser(userId: string, displayName: string): Promise<void> {
+    await db.insert(users).values({
+      id: userId,
+      firstName: displayName,
+    } as any);
   }
 }
 

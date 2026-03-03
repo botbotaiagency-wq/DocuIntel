@@ -16,6 +16,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const mainItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Review", url: "/review", icon: FileSearch },
   { title: "Upload", url: "/upload", icon: UploadCloud },
 ];
 

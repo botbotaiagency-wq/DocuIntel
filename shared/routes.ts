@@ -43,6 +43,7 @@ export const api = {
         originalFilename: z.string(),
         mimeType: z.string().optional(),
         sha256: z.string().optional(),
+        docType: z.string().optional(),
       }),
       responses: {
         201: z.custom<typeof documents.$inferSelect>(),
@@ -121,6 +122,50 @@ export const api = {
       responses: {
         201: z.custom<typeof documentSchemas.$inferSelect>(),
         400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PATCH' as const,
+      path: '/api/schemas/:id' as const,
+      input: z.object({
+        jsonSchema: z.any(),
+        active: z.boolean().optional(),
+      }),
+      responses: {
+        200: z.custom<typeof documentSchemas.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  users: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/users' as const,
+      responses: {
+        200: z.array(z.any()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/users' as const,
+      input: z.object({
+        displayName: z.string(),
+        role: z.string(),
+      }),
+      responses: {
+        201: z.any(),
+        400: errorSchemas.validation,
+      },
+    },
+    updateRole: {
+      method: 'PATCH' as const,
+      path: '/api/users/:userId/role' as const,
+      input: z.object({
+        role: z.string(),
+      }),
+      responses: {
+        200: z.any(),
+        404: errorSchemas.notFound,
       },
     },
   },
