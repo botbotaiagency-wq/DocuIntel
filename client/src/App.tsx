@@ -17,11 +17,13 @@ import Upload from "@/pages/Upload";
 import Review from "@/pages/Review";
 import AuditLog from "@/pages/AuditLog";
 import Admin from "@/pages/Admin";
+import ReviewQueue from "@/pages/ReviewQueue";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
+      <Route path="/review" component={ReviewQueue} />
       <Route path="/upload" component={Upload} />
       <Route path="/documents/:id" component={Review} />
       <Route path="/admin/schemas" component={Admin} />
