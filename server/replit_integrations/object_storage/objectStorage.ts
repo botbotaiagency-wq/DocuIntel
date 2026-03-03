@@ -198,12 +198,29 @@ export class ObjectStorageService {
     }
   
     if (!rawObjectPath.startsWith(objectEntityDir)) {
+      // Replit local dev paths might look different
+      if (rawObjectPath.includes("/.private/")) {
+        const parts = rawObjectPath.split("/.private/");
+        return `/objects/${parts[1]}`;
+      }
       return rawObjectPath;
     }
   
     // Extract the entity ID from the path
     const entityId = rawObjectPath.slice(objectEntityDir.length);
     return `/objects/${entityId}`;
+  }
+
+  // Gets a signed URL for viewing a private object
+  async getSignedViewUrl(objectPath: string): Promise<string> {
+    const file = await this.getObjectEntityFile(objectPath);
+    const { bucketName, objectName } = parseObjectPath(file.name);
+    return signObjectURL({
+      bucketName,
+      objectName,
+      method: "GET",
+      ttlSec: 3600,
+    });
   }
 
   // Tries to set the ACL policy for the object entity and return the normalized path.
@@ -248,6 +265,16 @@ function parseObjectPath(path: string): {
   }
   const pathParts = path.split("/");
   if (pathParts.length < 3) {
+    // Check for local replit path
+    if (path.includes(".private")) {
+       const parts = path.split("/");
+       const bucketIndex = parts.indexOf("repl-default-bucket-" + process.env.REPL_ID);
+       if (bucketIndex !== -1) {
+          const bucketName = parts[bucketIndex];
+          const objectName = parts.slice(bucketIndex + 1).join("/");
+          return { bucketName, objectName };
+       }
+    }
     throw new Error("Invalid path: must contain at least a bucket name");
   }
 
@@ -297,4 +324,3 @@ async function signObjectURL({
   const { signed_url: signedURL } = await response.json();
   return signedURL;
 }
-
