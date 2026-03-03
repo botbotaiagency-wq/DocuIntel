@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, UploadCloud, FileSearch, ShieldAlert, Settings, LogOut, Database } from "lucide-react";
+import { LayoutDashboard, UploadCloud, FileSearch, ShieldAlert, Settings, LogOut, Database, PenTool } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   Sidebar,
@@ -22,6 +22,7 @@ const mainItems = [
 
 const adminItems = [
   { title: "Document Schemas", url: "/admin/schemas", icon: Database },
+  { title: "Annotations", url: "/admin/annotations", icon: PenTool },
   { title: "Organization Settings", url: "/admin/settings", icon: Settings },
   { title: "Audit Log", url: "/audit", icon: ShieldAlert },
 ];

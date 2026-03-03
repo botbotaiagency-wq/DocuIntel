@@ -21,12 +21,13 @@ A web application for legal and identity document extraction (PDF/PNG/JPG). Supp
 1. **Staff Login**: Username/password authentication. Each staff has their own credentials created by an Admin.
 2. **Personalized Dashboard**: Staff see only their own uploaded documents. Admins see all documents across all staff with "Uploaded By" attribution.
 3. **Document Upload**: Select document type first (IC, Geran, Will, Other), then upload file or capture via camera
-4. **AI Extraction**: OpenAI GPT-4o Vision extracts structured data from documents
-5. **Review Queue**: Dedicated page for documents flagged as "review_required"
-6. **Admin Panel**: Schema management (create/edit), User management (create staff with username/password/role), Org settings
-7. **Audit Log**: Full audit trail of all document operations
-8. **PDF Preview**: Server-side proxy route (`/api/documents/:id/preview`) to avoid Chrome cross-origin blocking
-9. **RBAC**: Admin role sees all admin features and all documents. Other roles (Reviewer, Uploader, Viewer) see only their own documents.
+4. **AI Extraction**: OpenAI GPT-4o Vision extracts structured data from documents. Reads files as base64 (not signed URLs) to avoid 401 errors.
+5. **Document Annotations**: Admin can upload a template image per doc type, draw bounding boxes around fields, and label them. AI extraction uses these annotations to know exactly where to find data.
+6. **Review Queue**: Dedicated page for documents flagged as "review_required"
+7. **Admin Panel**: Schema management (create/edit), User management (create staff with username/password/role), Org settings, Annotations
+8. **Audit Log**: Full audit trail of all document operations
+9. **PDF Preview**: Server-side proxy route (`/api/documents/:id/preview`) to avoid Chrome cross-origin blocking
+10. **RBAC**: Admin role sees all admin features and all documents. Other roles (Reviewer, Uploader, Viewer) see only their own documents.
 
 ## Database Tables
 - `orgs` - Organizations

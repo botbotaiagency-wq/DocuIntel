@@ -7,6 +7,10 @@ import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_inte
 import { z } from "zod";
 import { extractDocument } from "./extraction";
 import bcrypt from "bcryptjs";
+import { execSync } from "child_process";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 
 function getUserId(req: any): string {
   return req.session?.userId || req.user?.claims?.sub;
@@ -141,9 +145,50 @@ export async function registerRoutes(
 
     try {
       const objectStorageService = new ObjectStorageService();
-      const signedUrl = await objectStorageService.getSignedViewUrl(doc.storageKey);
+      const file = await objectStorageService.getObjectEntityFile(doc.storageKey);
+      const [fileBuffer] = await file.download();
+      const mimeType = doc.mimeType || "application/pdf";
 
-      const result = await extractDocument(signedUrl, docType, doc.mimeType || "application/pdf");
+      let dataUri: string;
+      if (mimeType === "application/pdf") {
+        const tmpDir = os.tmpdir();
+        const tmpPdf = path.join(tmpDir, `extract_${doc.id}.pdf`);
+        const tmpPng = path.join(tmpDir, `extract_${doc.id}`);
+        fs.writeFileSync(tmpPdf, fileBuffer);
+        try {
+          execSync(`pdftoppm -png -f 1 -l 1 -r 200 "${tmpPdf}" "${tmpPng}"`, { timeout: 30000 });
+          const pngFile = `${tmpPng}-1.png`;
+          const altPngFile = `${tmpPng}-01.png`;
+          const actualFile = fs.existsSync(pngFile) ? pngFile : fs.existsSync(altPngFile) ? altPngFile : null;
+          if (!actualFile) throw new Error("pdftoppm produced no output");
+          const pngBuffer = fs.readFileSync(actualFile);
+          dataUri = `data:image/png;base64,${pngBuffer.toString("base64")}`;
+          fs.unlinkSync(actualFile);
+        } finally {
+          if (fs.existsSync(tmpPdf)) fs.unlinkSync(tmpPdf);
+        }
+      } else {
+        dataUri = `data:${mimeType};base64,${fileBuffer.toString("base64")}`;
+      }
+
+      const annotation = await storage.getAnnotationByDocType(docType);
+      let annotations: any[] | undefined;
+      let templateImageUri: string | undefined;
+
+      if (annotation) {
+        annotations = annotation.annotations as any[];
+        if (annotation.templateStorageKey) {
+          try {
+            const templateFile = await objectStorageService.getObjectEntityFile(annotation.templateStorageKey);
+            const [templateBuffer] = await templateFile.download();
+            templateImageUri = `data:image/png;base64,${templateBuffer.toString("base64")}`;
+          } catch (e) {
+            console.warn("Could not load annotation template image:", e);
+          }
+        }
+      }
+
+      const result = await extractDocument(dataUri, docType, mimeType, annotations, templateImageUri);
 
       const extraction = await storage.createExtraction({
         documentId: doc.id,
@@ -347,6 +392,84 @@ export async function registerRoutes(
     try {
       const input = api.users.updateRole.input.parse(req.body);
       const updated = await storage.updateUserProfile(profile.userId, { role: input.role });
+      res.json(updated);
+    } catch(err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  // Annotation template preview
+  app.get("/api/documents/annotation-template/:docType", isAuthenticated, async (req, res) => {
+    try {
+      const annotation = await storage.getAnnotationByDocType(req.params.docType);
+      if (!annotation || !annotation.templateStorageKey) {
+        return res.status(404).json({ message: "No template found" });
+      }
+      const objectStorageService = new ObjectStorageService();
+      const file = await objectStorageService.getObjectEntityFile(annotation.templateStorageKey);
+      res.set("Content-Type", "image/png");
+      res.set("Content-Disposition", "inline");
+      await objectStorageService.downloadObject(file, res, 300);
+    } catch (error) {
+      console.error("Error loading template:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Error loading template" });
+      }
+    }
+  });
+
+  // Annotation routes
+  app.get(api.annotations.list.path, isAuthenticated, requireAdmin, async (req, res) => {
+    const annotations = await storage.getAnnotations();
+    res.json(annotations);
+  });
+
+  app.get(api.annotations.getByDocType.path, isAuthenticated, requireAdmin, async (req, res) => {
+    const annotation = await storage.getAnnotationByDocType(req.params.docType);
+    if (!annotation) {
+      return res.status(404).json({ message: "No annotation found for this document type" });
+    }
+    res.json(annotation);
+  });
+
+  app.post(api.annotations.create.path, isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const input = api.annotations.create.input.parse(req.body);
+      const existing = await storage.getAnnotationByDocType(input.docType);
+      if (existing) {
+        const updated = await storage.updateAnnotation(existing.id, {
+          annotations: input.annotations as any,
+          templateStorageKey: input.templateStorageKey,
+        });
+        return res.json(updated);
+      }
+      const annotation = await storage.createAnnotation({
+        ...input,
+        annotations: input.annotations as any,
+        createdBy: getUserId(req),
+      });
+      res.status(201).json(annotation);
+    } catch(err) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({
+          message: err.errors[0].message,
+          field: err.errors[0].path.join('.'),
+        });
+      }
+      throw err;
+    }
+  });
+
+  app.patch(api.annotations.update.path, isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const input = api.annotations.update.input.parse(req.body);
+      const updated = await storage.updateAnnotation(Number(req.params.id), input as any);
       res.json(updated);
     } catch(err) {
       if (err instanceof z.ZodError) {

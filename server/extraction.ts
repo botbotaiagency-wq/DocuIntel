@@ -137,13 +137,44 @@ const VALIDATION_RULES: Record<string, (data: Record<string, any>) => Record<str
 };
 
 export async function extractDocument(
-  imageUrl: string,
+  imageDataUri: string,
   docType: string,
-  mimeType: string
+  mimeType: string,
+  annotations?: Array<{ x: number; y: number; width: number; height: number; label: string }>,
+  templateImageUri?: string,
 ): Promise<ExtractionResult> {
-  const systemPrompt = DOC_TYPE_PROMPTS[docType] || DOC_TYPE_PROMPTS.Other;
+  let systemPrompt = DOC_TYPE_PROMPTS[docType] || DOC_TYPE_PROMPTS.Other;
+
+  if (annotations && annotations.length > 0) {
+    const annotationGuide = annotations.map(a =>
+      `- "${a.label}": located at approximately x=${Math.round(a.x)}%, y=${Math.round(a.y)}% from top-left, width=${Math.round(a.width)}%, height=${Math.round(a.height)}% of the document`
+    ).join("\n");
+    systemPrompt += `\n\nIMPORTANT FIELD LOCATION GUIDE - Use these annotated regions to find each field:\n${annotationGuide}\n\nExtract the value for each labeled field from its indicated region on the document.`;
+  }
 
   try {
+    const userContent: any[] = [];
+
+    if (templateImageUri && annotations && annotations.length > 0) {
+      userContent.push({
+        type: "image_url",
+        image_url: { url: templateImageUri, detail: "low" },
+      });
+      userContent.push({
+        type: "text",
+        text: "Above is an annotated template showing where each field is located on this type of document.",
+      });
+    }
+
+    userContent.push({
+      type: "image_url",
+      image_url: { url: imageDataUri, detail: "high" },
+    });
+    userContent.push({
+      type: "text",
+      text: "Extract all relevant data from this document image. Return only JSON.",
+    });
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
@@ -153,19 +184,7 @@ export async function extractDocument(
         },
         {
           role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: {
-                url: imageUrl,
-                detail: "high",
-              },
-            },
-            {
-              type: "text",
-              text: "Extract all relevant data from this document image. Return only JSON.",
-            },
-          ],
+          content: userContent,
         },
       ],
       max_tokens: 2000,

@@ -67,6 +67,18 @@ export const documentSchemas = pgTable("document_schemas", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const documentAnnotations = pgTable("document_annotations", {
+  id: serial("id").primaryKey(),
+  docType: text("doc_type").notNull().unique(),
+  templateStorageKey: text("template_storage_key"),
+  annotations: jsonb("annotations").notNull().default([]),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type DocumentAnnotation = typeof documentAnnotations.$inferSelect;
+
 export const documentsRelations = relations(documents, ({ one, many }) => ({
   org: one(orgs, { fields: [documents.orgId], references: [orgs.id] }),
   uploader: one(users, { fields: [documents.uploaderUserId], references: [users.id] }),
