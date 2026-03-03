@@ -112,13 +112,18 @@ export default function Review() {
           <CardHeader className="py-4 border-b border-border/50 bg-muted/20 shrink-0">
             <CardTitle className="text-sm font-medium">Source Document</CardTitle>
           </CardHeader>
-          <CardContent className="p-0 flex-1 relative bg-black/20">
+          <CardContent className="p-0 flex-1 relative bg-white">
             {document.mimeType?.includes('image') ? (
               <div className="absolute inset-0 overflow-auto p-4 flex justify-center items-start">
                 <img src={document.storageKey} alt="Document" className="max-w-full h-auto rounded shadow-sm border border-border/50" />
               </div>
             ) : (
-              <iframe src={document.storageKey} className="w-full h-full border-0" title="Document Preview" />
+              <iframe 
+                src={document.storageKey} 
+                className="w-full h-full border-0 bg-white" 
+                title="Document Preview"
+                key={document.storageKey}
+              />
             )}
           </CardContent>
         </Card>

@@ -78,14 +78,17 @@ export async function registerRoutes(
 
     // In a real app, you would kick off a background job or orchestrate an agent workflow here.
     // For this MVP, we create a mock extraction.
+    
+    // Simple logic to "retrieve" something based on filename if it's a PDF
+    const mockData = doc.originalFilename.toLowerCase().includes('adrian') 
+      ? { full_name: "Adrian Tan", id_number: "850101-14-5231", date_of_birth: "1985-01-01", gender: "Male" }
+      : { full_name: "Mock User", id_number: "XXXXXX-XX-XXXX" };
+
     const extraction = await storage.createExtraction({
       documentId: doc.id,
       docType: "IC",
-      extractedJson: {
-        full_name: "Mock User",
-        id_number: "XXXXXX-XX-XXXX",
-      },
-      confidence: 0.85,
+      extractedJson: mockData,
+      confidence: 0.92,
       riskLevel: "LOW"
     });
 
