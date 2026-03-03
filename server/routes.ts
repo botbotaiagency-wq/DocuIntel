@@ -3,7 +3,7 @@ import { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
-import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
+import { registerObjectStorageRoutes, ObjectStorageService } from "./replit_integrations/object_storage";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -55,7 +55,16 @@ export async function registerRoutes(
     if (!doc) {
       return res.status(404).json({ message: "Document not found" });
     }
-    res.json(doc);
+    
+    // Generate a signed URL for the document preview
+    try {
+      const objectStorageService = new ObjectStorageService();
+      const signedUrl = await objectStorageService.getSignedViewUrl(doc.storageKey);
+      res.json({ ...doc, storageKey: signedUrl });
+    } catch (error) {
+      console.error("Error generating signed URL:", error);
+      res.json(doc);
+    }
   });
 
   app.post(api.documents.extract.path, isAuthenticated, async (req, res) => {
