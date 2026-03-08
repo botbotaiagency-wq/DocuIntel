@@ -1,6 +1,11 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, mkdir, writeFile, copyFile } from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = path.resolve(__dirname, "..");
 
 // server deps to bundle to reduce openat(2) syscalls
 // which helps cold start times
@@ -54,11 +59,56 @@ async function buildAll() {
     outfile: "dist/index.cjs",
     define: {
       "process.env.NODE_ENV": '"production"',
+      ...(process.env.VERCEL ? { "process.env.VERCEL": '"1"' } : {}),
     },
     minify: true,
     external: externals,
     logLevel: "info",
   });
+
+  if (process.env.VERCEL) {
+    console.log("emitting Vercel Build Output API...");
+    const out = path.join(rootDir, ".vercel", "output");
+    const funcDir = path.join(out, "functions", "api.func");
+    await mkdir(funcDir, { recursive: true });
+
+    await copyFile(
+      path.join(rootDir, "dist", "index.cjs"),
+      path.join(funcDir, "server.cjs"),
+    );
+    await writeFile(
+      path.join(funcDir, "index.js"),
+      `const { getApp } = require("./server.cjs");
+let appPromise = getApp();
+module.exports = async (req, res) => {
+  const app = await appPromise;
+  app(req, res);
+};
+`,
+    );
+    await writeFile(
+      path.join(funcDir, ".vc-config.json"),
+      JSON.stringify({
+        runtime: "nodejs20.x",
+        handler: "index.js",
+        launcherType: "Nodejs",
+        shouldAddHelpers: true,
+        shouldAddSourcemapSupport: false,
+      }),
+    );
+    await writeFile(
+      path.join(out, "config.json"),
+      JSON.stringify({
+        version: 3,
+        routes: [
+          { "handle": "filesystem" },
+          { "src": "/api(.*)", "dest": "/api$1" },
+          { "src": "/(.*)", "dest": "/index.html" },
+        ],
+      }),
+    );
+    console.log("Vercel output written to .vercel/output");
+  }
 }
 
 buildAll().catch((err) => {
