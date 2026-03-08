@@ -28,10 +28,10 @@ export default defineConfig({
   },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
-    // On Vercel use Build Output API (.vercel/output/static); locally use dist/public
+    // On Vercel serve SPA from public/; locally use dist/public
     outDir: path.resolve(
       import.meta.dirname,
-      process.env.VERCEL ? ".vercel/output/static" : "dist/public",
+      process.env.VERCEL ? "public" : "dist/public",
     ),
     emptyOutDir: true,
   },

@@ -1,6 +1,6 @@
 /**
  * Vercel serverless entry: run the Express app for /api and /api/*.
- * All other routes are served as static from public/ (SPA).
+ * Middleware sets x-vercel-original-path so we restore req.url after rewrite.
  */
 const path = require("path");
 
@@ -15,6 +15,11 @@ function getAppPromise() {
 }
 
 module.exports = async (req, res) => {
+  const originalPath = req.headers["x-vercel-original-path"];
+  if (originalPath) {
+    const q = req.url && req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
+    req.url = originalPath + q;
+  }
   const app = await getAppPromise();
   app(req, res);
 };
