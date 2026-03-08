@@ -67,6 +67,15 @@ export const api = {
         404: errorSchemas.notFound,
       },
     },
+    export: {
+      method: 'GET' as const,
+      path: '/api/documents/:id/export' as const,
+      responses: {
+        200: z.record(z.any()),
+        403: errorSchemas.unauthorized,
+        404: errorSchemas.notFound,
+      },
+    },
     reviewApprove: {
       method: 'POST' as const,
       path: '/api/documents/:id/review/approve' as const,

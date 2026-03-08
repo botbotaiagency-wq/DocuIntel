@@ -10,12 +10,12 @@ export interface IStorage {
 
   // Documents
   getDocuments(): Promise<Document[]>;
-  getDocumentsByUser(userId: string): Promise<Document[]>;
-  getDocumentsWithUploader(): Promise<any[]>;
-  getDocument(id: number): Promise<Document | undefined>;
+  getDocumentsByUser(userId: string, orgId?: number | null): Promise<Document[]>;
+  getDocumentsWithUploader(orgId?: number | null): Promise<any[]>;
+  getDocument(id: number, orgId?: number | null): Promise<Document | undefined>;
   createDocument(doc: Partial<Document>): Promise<Document>;
-  updateDocumentStatus(id: number, status: string): Promise<Document>;
-  deleteDocument(id: number): Promise<boolean>;
+  updateDocumentStatus(id: number, status: string, orgId?: number | null): Promise<Document | undefined>;
+  deleteDocument(id: number, orgId?: number | null): Promise<boolean>;
 
   // Extractions
   getLatestExtraction(documentId: number): Promise<Extraction | undefined>;
@@ -23,20 +23,20 @@ export interface IStorage {
   updateExtraction(id: number, updates: Partial<Extraction>): Promise<Extraction>;
 
   // Audit
-  getAuditEvents(): Promise<AuditEvent[]>;
+  getAuditEvents(orgId?: number | null): Promise<AuditEvent[]>;
   createAuditEvent(event: Partial<AuditEvent>): Promise<AuditEvent>;
 
   // Schemas
-  getSchemas(): Promise<DocumentSchema[]>;
-  getSchema(id: number): Promise<DocumentSchema | undefined>;
+  getSchemas(orgId?: number | null): Promise<DocumentSchema[]>;
+  getSchema(id: number, orgId?: number | null): Promise<DocumentSchema | undefined>;
   createSchema(schema: Partial<DocumentSchema>): Promise<DocumentSchema>;
-  updateSchema(id: number, updates: Partial<DocumentSchema>): Promise<DocumentSchema>;
+  updateSchema(id: number, updates: Partial<DocumentSchema>, orgId?: number | null): Promise<DocumentSchema | undefined>;
 
   // User Profiles
-  getUserProfiles(): Promise<any[]>;
+  getUserProfiles(orgId?: number | null): Promise<any[]>;
   getUserProfile(userId: string): Promise<UserProfile | undefined>;
   createUserProfile(profile: Partial<UserProfile>): Promise<UserProfile>;
-  updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile>;
+  updateUserProfile(userId: string, updates: Partial<UserProfile>, orgId?: number | null): Promise<UserProfile | undefined>;
   createStaffUser(userId: string, displayName: string, username: string, passwordHash: string): Promise<void>;
   getUserByUsername(username: string): Promise<any>;
 
@@ -58,7 +58,11 @@ export class DatabaseStorage implements IStorage {
     return org;
   }
 
-  async getDocument(id: number): Promise<Document | undefined> {
+  async getDocument(id: number, orgId?: number | null): Promise<Document | undefined> {
+    if (orgId != null) {
+      const [doc] = await db.select().from(documents).where(and(eq(documents.id, id), eq(documents.orgId, orgId)));
+      return doc;
+    }
     const [doc] = await db.select().from(documents).where(eq(documents.id, id));
     return doc;
   }
@@ -68,13 +72,21 @@ export class DatabaseStorage implements IStorage {
     return newDoc;
   }
 
-  async updateDocumentStatus(id: number, status: string): Promise<Document> {
+  async updateDocumentStatus(id: number, status: string, orgId?: number | null): Promise<Document | undefined> {
+    if (orgId != null) {
+      const [updatedDoc] = await db.update(documents).set({ status }).where(and(eq(documents.id, id), eq(documents.orgId, orgId))).returning();
+      return updatedDoc;
+    }
     const [updatedDoc] = await db.update(documents).set({ status }).where(eq(documents.id, id)).returning();
     return updatedDoc;
   }
 
-  async deleteDocument(id: number): Promise<boolean> {
-    await db.update(documents).set({ deletedAt: new Date() }).where(eq(documents.id, id));
+  async deleteDocument(id: number, orgId?: number | null): Promise<boolean> {
+    if (orgId != null) {
+      await db.update(documents).set({ deletedAt: new Date() }).where(and(eq(documents.id, id), eq(documents.orgId, orgId)));
+    } else {
+      await db.update(documents).set({ deletedAt: new Date() }).where(eq(documents.id, id));
+    }
     return true; // Soft delete
   }
 
@@ -93,7 +105,10 @@ export class DatabaseStorage implements IStorage {
     return updatedExt;
   }
 
-  async getAuditEvents(): Promise<AuditEvent[]> {
+  async getAuditEvents(orgId?: number | null): Promise<AuditEvent[]> {
+    if (orgId != null) {
+      return await db.select().from(auditEvents).where(eq(auditEvents.orgId, orgId)).orderBy(desc(auditEvents.createdAt));
+    }
     return await db.select().from(auditEvents).orderBy(desc(auditEvents.createdAt));
   }
 
@@ -106,11 +121,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(documents).where(isNull(documents.deletedAt)).orderBy(desc(documents.createdAt));
   }
 
-  async getDocumentsByUser(userId: string): Promise<Document[]> {
-    return await db.select().from(documents).where(and(isNull(documents.deletedAt), eq(documents.uploaderUserId, userId))).orderBy(desc(documents.createdAt));
+  async getDocumentsByUser(userId: string, orgId?: number | null): Promise<Document[]> {
+    const conditions = [isNull(documents.deletedAt), eq(documents.uploaderUserId, userId)];
+    if (orgId != null) conditions.push(eq(documents.orgId, orgId));
+    return await db.select().from(documents).where(and(...conditions)).orderBy(desc(documents.createdAt));
   }
 
-  async getDocumentsWithUploader(): Promise<any[]> {
+  async getDocumentsWithUploader(orgId?: number | null): Promise<any[]> {
+    const conditions = [isNull(documents.deletedAt)];
+    if (orgId != null) conditions.push(eq(documents.orgId, orgId));
     const results = await db
       .select({
         id: documents.id,
@@ -130,16 +149,23 @@ export class DatabaseStorage implements IStorage {
       })
       .from(documents)
       .leftJoin(users, eq(documents.uploaderUserId, users.id))
-      .where(isNull(documents.deletedAt))
+      .where(and(...conditions))
       .orderBy(desc(documents.createdAt));
     return results;
   }
 
-  async getSchemas(): Promise<DocumentSchema[]> {
+  async getSchemas(orgId?: number | null): Promise<DocumentSchema[]> {
+    if (orgId != null) {
+      return await db.select().from(documentSchemas).where(eq(documentSchemas.orgId, orgId));
+    }
     return await db.select().from(documentSchemas);
   }
 
-  async getSchema(id: number): Promise<DocumentSchema | undefined> {
+  async getSchema(id: number, orgId?: number | null): Promise<DocumentSchema | undefined> {
+    if (orgId != null) {
+      const [schema] = await db.select().from(documentSchemas).where(and(eq(documentSchemas.id, id), eq(documentSchemas.orgId, orgId)));
+      return schema;
+    }
     const [schema] = await db.select().from(documentSchemas).where(eq(documentSchemas.id, id));
     return schema;
   }
@@ -154,7 +180,23 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getUserProfiles(): Promise<any[]> {
+  async getUserProfiles(orgId?: number | null): Promise<any[]> {
+    if (orgId != null) {
+      return await db
+        .select({
+          userId: userProfiles.userId,
+          role: userProfiles.role,
+          orgId: userProfiles.orgId,
+          displayName: userProfiles.displayName,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          username: users.username,
+        })
+        .from(userProfiles)
+        .leftJoin(users, eq(userProfiles.userId, users.id))
+        .where(eq(userProfiles.orgId, orgId));
+    }
     const results = await db
       .select({
         userId: userProfiles.userId,
@@ -181,7 +223,11 @@ export class DatabaseStorage implements IStorage {
     return newProfile;
   }
 
-  async updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
+  async updateUserProfile(userId: string, updates: Partial<UserProfile>, orgId?: number | null): Promise<UserProfile | undefined> {
+    if (orgId != null) {
+      const [updated] = await db.update(userProfiles).set(updates).where(and(eq(userProfiles.userId, userId), eq(userProfiles.orgId, orgId))).returning();
+      return updated;
+    }
     const [updated] = await db.update(userProfiles).set(updates).where(eq(userProfiles.userId, userId)).returning();
     return updated;
   }

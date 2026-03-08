@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useAnnotationByDocType, useSaveAnnotation } from "@/hooks/use-annotations";
+import { useAnnotations, useAnnotationByDocType, useSaveAnnotation } from "@/hooks/use-annotations";
 import { useUpload } from "@/hooks/use-upload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,7 @@ export default function Annotate() {
 
   const { uploadFile, isUploading } = useUpload();
   const saveAnnotation = useSaveAnnotation();
+  const { data: annotationsList } = useAnnotations();
   const { data: existingAnnotation, isLoading: annotationLoading } = useAnnotationByDocType(selectedDocType);
 
   useEffect(() => {
@@ -244,7 +245,10 @@ export default function Annotate() {
         templateStorageKey: templateStorageKey || undefined,
         annotations,
       });
-      toast({ title: "Annotations saved", description: `${annotations.length} field annotations saved for ${selectedDocType} documents.` });
+      toast({
+        title: "Annotations saved",
+        description: `${annotations.length} field(s) saved for ${selectedDocType}. This reference will be used when extracting ${selectedDocType} documents.`,
+      });
     } catch (err) {
       toast({ title: "Save failed", description: "Could not save annotations.", variant: "destructive" });
     }
@@ -261,12 +265,17 @@ export default function Annotate() {
   };
 
   if (!selectedDocType) {
+    const list = Array.isArray(annotationsList) ? annotationsList : [];
+    const byDocType = Object.fromEntries(
+      list.map((a: { docType: string; annotations?: unknown[] }) => [a.docType, a])
+    );
+
     return (
       <div className="max-w-3xl mx-auto">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-2xl sm:text-3xl font-display font-bold tracking-tight" data-testid="text-annotate-title">Document Annotations</h2>
           <p className="text-sm sm:text-base text-muted-foreground mt-1 sm:mt-2">
-            Upload a template document and draw boxes around fields to teach the AI where to find each piece of data.
+            One reference annotation per document type. Upload a template and draw boxes around fields; the AI uses this to extract data.
           </p>
         </div>
 
@@ -284,12 +293,46 @@ export default function Annotate() {
                 </div>
                 <div className="min-w-0">
                   <h3 className="font-semibold text-base sm:text-lg">{docType.label}</h3>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Configure field annotations</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                    {byDocType[docType.id]
+                      ? `${(byDocType[docType.id].annotations?.length ?? 0)} field(s) configured`
+                      : "Configure field annotations"}
+                  </p>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {list.length > 0 && (
+          <Card className="mt-6 border-border/50 bg-card">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm font-medium">Reference annotations (used for extraction)</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                One per document type. Click a card above to edit or add.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <ul className="space-y-2">
+                {DOC_TYPES.map((dt) => {
+                  const ann = byDocType[dt.id];
+                  const count = ann?.annotations?.length ?? 0;
+                  return (
+                    <li
+                      key={dt.id}
+                      className="flex items-center justify-between py-2 border-b border-border/50 last:border-0"
+                    >
+                      <span className="font-medium text-sm">{dt.label}</span>
+                      <span className="text-muted-foreground text-sm">
+                        {count > 0 ? `${count} field(s)` : "Not configured"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }

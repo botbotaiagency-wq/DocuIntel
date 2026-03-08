@@ -184,8 +184,9 @@ export async function extractDocument(
     });
 
     const openai = getOpenAI();
+    const model = process.env.EXTRACTION_MODEL || "gpt-4o";
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model,
       messages: [
         {
           role: "system",

@@ -142,6 +142,21 @@ export async function setupAuth(app: Express) {
 }
 
 export const isAuthenticated: RequestHandler = async (req: any, res, next) => {
+  // Test stub: when NODE_TEST=1, allow X-Test-User-Profile header to set session (no PII in header)
+  if (process.env.NODE_TEST === "1") {
+    const raw = req.get("X-Test-User-Profile");
+    if (raw) {
+      try {
+        const decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
+        req.session = req.session || {};
+        req.session.userId = decoded.userId ?? "test-user";
+        return next();
+      } catch {
+        // fall through
+      }
+    }
+  }
+
   // Local dev: session-based auth via /api/auth/login
   if (req.session && req.session.userId) {
     return next();
