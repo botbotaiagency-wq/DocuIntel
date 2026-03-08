@@ -20,6 +20,17 @@ module.exports = async (req, res) => {
     const q = req.url && req.url.includes("?") ? "?" + req.url.split("?").slice(1).join("?") : "";
     req.url = originalPath + q;
   }
-  const app = await getAppPromise();
-  app(req, res);
+  try {
+    const app = await getAppPromise();
+    app(req, res);
+  } catch (err) {
+    console.error("API startup error:", err);
+    const msg = err && err.message ? err.message : "Server configuration error";
+    const isDbMissing = /DATABASE_URL|POSTGRES_URL/i.test(msg) || /database.*not set/i.test(msg);
+    res.status(isDbMissing ? 503 : 500).json({
+      message: isDbMissing
+        ? "DATABASE_URL or POSTGRES_URL is not set. Link Supabase in Vercel (sets POSTGRES_URL) or add DATABASE_URL."
+        : msg,
+    });
+  }
 };

@@ -31,10 +31,11 @@ export function getSession() {
       maxAge: sessionTtl,
     },
   };
-  if (process.env.DATABASE_URL && process.env.NODE_ENV === "production") {
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (dbUrl && process.env.NODE_ENV === "production") {
     const pgStore = connectPg(session);
     const sessionStore = new pgStore({
-      conString: process.env.DATABASE_URL,
+      conString: dbUrl,
       createTableIfMissing: true,
       ttl: sessionTtl,
       tableName: "sessions",

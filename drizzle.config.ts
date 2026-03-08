@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+if (!dbUrl) {
+  throw new Error("DATABASE_URL or POSTGRES_URL required (e.g. from Supabase or .env)");
 }
 
 export default defineConfig({
@@ -10,6 +11,6 @@ export default defineConfig({
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: dbUrl,
   },
 });

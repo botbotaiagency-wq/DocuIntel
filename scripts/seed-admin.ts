@@ -16,8 +16,8 @@ const displayName = process.env.SEED_ADMIN_DISPLAY_NAME || "Local Admin";
 const userId = `staff_${Date.now()}`;
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    console.error("DATABASE_URL is not set. Create a .env file with DATABASE_URL (and SESSION_SECRET).");
+  if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
+    console.error("DATABASE_URL or POSTGRES_URL is not set. Create a .env file with one of these (and SESSION_SECRET).");
     process.exit(1);
   }
 
